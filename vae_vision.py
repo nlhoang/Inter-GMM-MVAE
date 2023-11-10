@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import elbo
-
+import dataloader
+from utils import visualize_ls
 vision_dataSize = torch.Size([3, 256, 256])
 vision_channel = vision_dataSize[0]
-fBase = 32
+fBase = 8
 const = 1e-6
 
 
@@ -13,7 +14,7 @@ class Encoder_vision(nn.Module):
     def __init__(self, latent_dim):
         super(Encoder_vision, self).__init__()
         self.enc = nn.Sequential(
-            nn.Conv2d(in_channels=vision_channel, out_channels=fBase, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.Conv2d(vision_channel, fBase, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(fBase),
             nn.ReLU(True),
             nn.Conv2d(fBase, fBase * 2, 4, 2, 1, bias=False),
@@ -71,7 +72,6 @@ class Decoder_vision(nn.Module):
     def forward(self, z):
         z = z.unsqueeze(-1).unsqueeze(-1)  # fit deconv layers
         z = self.dec(z.view(-1, *z.size()[-3:]))
-        #z = torch.sigmoid(z)
         return z
 
 
@@ -100,7 +100,6 @@ class VAE(nn.Module):
 def train(args, model, data_loader, optimizer, device='mps', mu_prior=None, var_prior=None, save_epoch=0):
     model.train()
     loss_average = 0
-    num_batch = 0
     means = torch.zeros(1, args.latent_dim)
     logvars = torch.zeros(1, args.latent_dim)
     for batch_idx, x in enumerate(data_loader):
@@ -120,7 +119,6 @@ def train(args, model, data_loader, optimizer, device='mps', mu_prior=None, var_
         loss.backward()
         optimizer.step()
         loss_average += loss.item()
-        num_batch += 1
         if save_epoch != 0:
             for mean in mu:
                 mean = mean.cpu()
@@ -128,5 +126,31 @@ def train(args, model, data_loader, optimizer, device='mps', mu_prior=None, var_
             for lv in logvar:
                 lv = lv.cpu()
                 logvars = torch.cat((logvars, lv.unsqueeze(0)), dim=0)
-    loss_average /= num_batch
+    loss_average /= len(data_loader.dataset)
     return loss_average, means[1:], logvars[1:]
+
+
+def elbo_original(recon, x, mu, logvar, beta=1.0):
+    mse_loss = nn.MSELoss()
+    recon_loss = mse_loss(recon, x)
+    kl_divergence = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1)
+    loss = torch.mean(recon_loss + beta * kl_divergence)
+    return loss
+
+
+def train_original(model, data_loader, epochs=100, beta=1, device='mps'):
+    model.train()
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=1e-3, weight_decay=1e-5)
+    model.to(device)
+    for epoch in range(epochs):
+        loss_average = 0
+        for batch_idx, x in enumerate(data_loader):
+            x = x.to(device)
+            recon, mu, logvar = model(x)
+            loss = elbo_original(recon, x, mu, logvar, beta=beta)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            loss_average += loss.item()
+        loss_average /= len(data_loader.dataset)
+        print('Epoch', epoch, ':', loss_average)
