@@ -172,9 +172,9 @@ def train(args, model, data_loader, optimizer, device='mps', mu_prior=None, var_
         loss.backward()
         optimizer.step()
         loss_average += loss.item()
-        loss_vision += la
-        loss_audio += lb
-        loss_tactile += lc
+        loss_vision += la.item()
+        loss_audio += lb.item()
+        loss_tactile += lc.item()
         if save_epoch != 0:
             for mean in mu:
                 mean = mean.cpu()

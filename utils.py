@@ -9,7 +9,7 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 import pickle
 
-colors = ['Green', 'Blue', 'Brown', 'Red', 'Yellow', 'DarkSlateBlue', 'Black', 'BurlyWood', 'Blue',
+colors = ['Green', 'Blue', 'Brown', 'Red', 'Black', 'Yellow', 'DarkSlateBlue',  'BurlyWood', 'Blue',
           'Chocolate', 'DarkBlue', 'BlueViolet', 'LightBlue', 'CadetBlue', 'Chartreuse', 'Coral', 'CornflowerBlue',
           'Cornsilk', 'AliceBlue', 'DarkBlue', 'DarkCyan', 'DarkGoldenRod', 'Beige', 'DarkSlateBlue', 'Orange',
           'DarkGreen', 'Chocolate', 'DarkMagenta', 'Orange','DarkOliveGreen',  'DarkOrchid', 'Purple', 'DarkRed',
@@ -32,7 +32,7 @@ class Logger(object):
         pass
 
 
-def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
+def save_checkpoint(state, is_best=False, folder='./', filename='checkpoint.pth.tar'):
     if not os.path.isdir(folder):
         os.mkdir(folder)
     torch.save(state, os.path.join(folder, filename))
@@ -51,45 +51,56 @@ def param_count(model):
     return num_params
 
 
-def visualize_tsne(means, index, labels, save_dir, description):
+def visualize_ls(means, labels, save_dir, description):
+    colors = ["red", "green", "blue", "orange", "purple", "yellow", "black", "cyan", '#a65628', '#f781bf']
+    points_pca = PCA(n_components=2, random_state=0).fit_transform(means)
     points_tsne = TSNE(n_components=2, random_state=0).fit_transform(means)
-    plt.figure(figsize=(10 , 10))
-    plt.xticks([])
-    plt.yticks([])
-    for p, l, i in zip(points_tsne, labels, index):
+
+    # TSNE
+    plt.figure(figsize=(10, 10))
+    for p, l in zip(points_tsne, labels):
         plt.title("TSNE", fontsize=24)
-        plt.tick_params(labelsize=165)
-        plt.scatter(p[0], p[1], marker="${}$".format(i), c=colors[labels[i]], s=200)
+        plt.tick_params(labelsize=17)
+        plt.scatter(p[0], p[1], marker="${}$".format(l), c=colors[l], s=100)
     plt.savefig(save_dir + 'tsne_' + description + '.png')
     plt.close()
 
-
-def visualize_pca(means, index, labels, save_dir, description):
-    points_pca = PCA(n_components=2, random_state=0).fit_transform(means)
+    # PCA
     plt.figure(figsize=(10, 10))
-    plt.xticks([])
-    plt.yticks([])
-    for p, l, i in zip(points_pca, labels, index):
+    for p, l in zip(points_pca, labels):
         plt.title("PCA", fontsize=24)
-        plt.tick_params(labelsize=165)
-        plt.scatter(p[0], p[1], marker="${}$".format(i), c=colors[labels[i]], s=200)
+        plt.tick_params(labelsize=17)
+        plt.scatter(p[0], p[1], marker="${}$".format(l), c=colors[l], s=100)
     plt.savefig(save_dir + 'pca_' + description + '.png')
     plt.close()
 
 
-def visualize_ls(means, index, labels, save_dir, description):
-    visualize_pca(means, index, labels, save_dir, description)
-    visualize_tsne(means, index, labels, save_dir, description)
+def visualize_tsne(means, labels, save_dir, description):
+    colors = ["red", "green", "blue", "orange", "purple", "yellow", "black", "cyan", '#a65628', '#f781bf']
+    points_tsne = TSNE(n_components=2, random_state=0).fit_transform(means)
+
+    # TSNE
+    plt.figure(figsize=(10, 10))
+    for p, l in zip(points_tsne, labels):
+        plt.title("TSNE", fontsize=24)
+        plt.tick_params(labelsize=17)
+        plt.scatter(p[0], p[1], marker="${}$".format(l), c=colors[l], s=100)
+    plt.savefig(save_dir + 'tsne_' + description + '.png')
+    plt.close()
 
 
-def visualize_1data(name, dataList):
-    plt.ion()
-    fig = plt.figure()
-    plt.plot(dataList)
-    plt.xlabel('Epochs')
-    plt.ylabel(name)
-    plt.savefig(name)
-    plt.show()
+def visualize_pca(means, labels, save_dir, description):
+    colors = ["red", "green", "blue", "orange", "purple", "yellow", "black", "cyan", '#a65628', '#f781bf']
+    points_pca = PCA(n_components=2, random_state=0).fit_transform(means)
+
+    # PCA
+    plt.figure(figsize=(10, 10))
+    for p, l in zip(points_pca, labels):
+        plt.title("PCA", fontsize=24)
+        plt.tick_params(labelsize=17)
+        plt.scatter(p[0], p[1], marker="${}$".format(l), c=colors[l], s=100)
+    plt.savefig(save_dir + 'pca_' + description + '.png')
+    plt.close()
 
 
 def save_toFile(path, file_name, data_saved, rows=0):
@@ -138,7 +149,7 @@ def m_elbo(args, recon_vision, vision, recon_audio, audio, recon_tactile, tactil
                       + args.lambda_audio * recon_loss_audio
                       + args.lambda_tactile * recon_loss_tactile
                       + variational_beta * kld)
-    return loss
+    return loss, recon_loss_vision, recon_loss_audio, recon_loss_tactile
 
 
 def kullback_leibler_divergence(dim, cpu_mu_1, cpu_var_1, mu_2, logvar_2, device='mps'):
@@ -153,14 +164,3 @@ def kullback_leibler_divergence(dim, cpu_mu_1, cpu_var_1, mu_2, logvar_2, device
     diff_division = mu_diff * mu_diff / var_1
     kld = 0.5 * ((var_division + logvar_division + diff_division).sum(1) - dim)
     return kld
-
-
-def euclidean_distance(cpu_mu_1, mu_2, device='mps'):
-    mu_1 = torch.from_numpy(cpu_mu_1).to(torch.float32).to(device)
-    distance = nn.functional.pairwise_distance(mu_1, mu_2).sum(0)
-    return distance
-
-
-def save_object(obj, filename):
-    with open(filename, 'wb') as outp:  # Overwrites any existing file.
-        pickle.dump(obj, outp, pickle.HIGHEST_PROTOCOL)
