@@ -26,7 +26,6 @@ class Agent:
         self.name = name  # Agent name
         self.args = args
         self.channel = channel  # communication channel
-
         self.device = args.device
         self.dim = self.args.latent_dim
         self.K = self.args.K  # number of categories
@@ -41,11 +40,7 @@ class Agent:
 
         self.mu_prior = None
         self.var_prior = None
-        self.silhouette = []
-        self.silhouette_true = []
         self.davies_bouldin = []
-        self.davies_bouldin_true = []
-        self.linear_classification_accuracy = []
         self.ARI = []
         self.pred_label = []  # predicted labels
         self.acceptedCount = []
@@ -76,8 +71,7 @@ class Agent:
     def initial_mu_lamb(self):
         for k in range(self.K):
             self.lamb[k] = wishart.rvs(df=self.dim, scale=self.hyper_lamb, size=1)
-            self.mu[k] = np.random.multivariate_normal(mean=self.hyper_mu,
-                                                       cov=np.linalg.inv(beta * self.lamb[k])).flatten()
+            self.mu[k] = np.random.multivariate_normal(mean=self.hyper_mu, cov=np.linalg.inv(beta * self.lamb[k])).flatten()
 
     def initial_hyperparameter(self):
         centroid = np.mean(self.z_means, axis=0)
@@ -96,7 +90,7 @@ class Agent:
                 save_epoch = 1
             loss_current, means, logvars, loss_vision, loss_audio, loss_tactile = self.model_train(args=self.args, model=self.model, optimizer=optimizer,
                 mu_prior=self.mu_prior, var_prior=self.var_prior, save_epoch=save_epoch, data_loader=self.dataloader, device=self.device)
-            print('Epoch', epoch, ':', loss_current, loss_vision, loss_audio, loss_tactile)
+            print('Epoch: {} - Total loss: {:.4f} - Visions: {:.4f} - Audio {:.4f} - Tactile {:.4f}'.format(epoch, loss_current, loss_vision, loss_audio, loss_tactile))
             self.lossList.append(loss_current)
 
         _means = means.detach().numpy()
@@ -134,10 +128,8 @@ class Agent:
                 accepted += 1
                 agent.pred_label.append(np.argmax(self.channel[d]))
             else:  # mode == -1: MH sampling
-                denominator[d] = multivariate_normal.pdf(agent.z_means[d], mean=agent.mu[np.argmax(self.w[d])],
-                                                         cov=np.linalg.inv(agent.lamb[np.argmax(self.w[d])]))
-                numerator[d] = multivariate_normal.pdf(agent.z_means[d], mean=agent.mu[np.argmax(agent.w[d])],
-                                                       cov=np.linalg.inv(agent.lamb[np.argmax(agent.w[d])]))
+                denominator[d] = multivariate_normal.pdf(agent.z_means[d], mean=agent.mu[np.argmax(self.w[d])], cov=np.linalg.inv(agent.lamb[np.argmax(self.w[d])]))
+                numerator[d] = multivariate_normal.pdf(agent.z_means[d], mean=agent.mu[np.argmax(agent.w[d])], cov=np.linalg.inv(agent.lamb[np.argmax(agent.w[d])]))
                 ratio = min(1, denominator[d] / numerator[d])
                 u = np.random.rand()
                 if ratio >= u:
@@ -168,8 +160,7 @@ class Agent:
 
             # sampling \lambda and \mu
             self.lamb[k] = wishart.rvs(size=1, df=nu_hat_k[k], scale=w_hat_kdd[k]) + const
-            self.mu[k] = np.random.multivariate_normal(size=1, mean=m_hat_kd[k],
-                                                       cov=np.linalg.inv(beta_hat_k[k] * self.lamb[k])).flatten()
+            self.mu[k] = np.random.multivariate_normal(size=1, mean=m_hat_kd[k], cov=np.linalg.inv(beta_hat_k[k] * self.lamb[k])).flatten()
 
     def evaluate(self):
         if len(self.pred_label) > self.D:
@@ -184,27 +175,3 @@ class Agent:
             self.mu_prior[d] = self.mu[np.argmax(self.channel[d])]
             self.var_prior[d] = np.diag(np.linalg.inv(self.lamb[np.argmax(self.channel[d])]))
 
-    def reconstruction(self):
-        self.model = self.model.to(self.device)
-        self.model.eval()
-        vision_recon = []
-        audio_recon = []
-        tactile_recon = []
-        for batch_idx, data in enumerate(self.dataloader):
-            vision = data[0].to(self.device)
-            audio = data[1].to(self.device)
-            tactile = data[2].to(self.device)
-            _recon_vis, _recon_aud, _recon_tac, _, _ = self.model(vision=vision, audio=audio, tactile=tactile)
-            _recon_vis = _recon_vis.cpu()
-            _recon_aud = _recon_aud.cpu()
-            _recon_tac = _recon_tac.cpu()
-            _recon_vis = _recon_vis.detach().numpy()
-            _recon_aud = _recon_aud.detach().numpy()
-            _recon_tac = _recon_tac.detach().numpy()
-            for _recon in _recon_vis:
-                vision_recon.append(_recon)
-            for _recon in _recon_aud:
-                audio_recon.append(_recon)
-            for _recon in _recon_tac:
-                tactile_recon.append(_recon)
-        return vision_recon, audio_recon, tactile_recon

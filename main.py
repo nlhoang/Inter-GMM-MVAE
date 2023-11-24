@@ -15,9 +15,9 @@ def args_define():
     parser = argparse.ArgumentParser()
     parser.add_argument('--latent-dim', type=int, default=20, metavar='L', help='latent dimensionality (default: 21)')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N', help='batch size of model [default: 64]')
-    parser.add_argument('--iteration', type=int, default=2, metavar='N', help='No of iterations (mvae+mh) [default: 10]')
-    parser.add_argument('--mvae-epochs', type=int, default=2, metavar='N', help='No of epochs of mvae [default: 10]')
-    parser.add_argument('--mh-epochs', type=int, default=2, metavar='N', help='No of epochs of MH naming game [default: 10]')
+    parser.add_argument('--iteration', type=int, default=10, metavar='N', help='No of iterations (mvae+mh) [default: 10]')
+    parser.add_argument('--mvae-epochs', type=int, default=100, metavar='N', help='No of epochs of mvae [default: 10]')
+    parser.add_argument('--mh-epochs', type=int, default=100, metavar='N', help='No of epochs of MH naming game [default: 10]')
     parser.add_argument('--expert', type=str, default='MoE', choices=['MoE', 'PoE', 'MoPoE'], help='Type of expert')
     parser.add_argument('--K', type=int, default=10, metavar='N', help='number of categories')
     parser.add_argument('--D', type=int, default=10000, metavar='N', help='number of data points')
@@ -97,7 +97,8 @@ if __name__ == "__main__":
                     visualize_ls(B.z_means, B.pred_label, b_path, 'b_' + str(i1))
                 kappa = cohen_kappa_score(A.pred_label, B.pred_label)
                 cohen_kappa.append(kappa)
-                print('MH Epoch', i1, '- Kappa:', kappa, '- ARI A:', A.ARI[-1], '- ARI B:', B.ARI[-1])
+                print('MH Epoch {} - Kappa: {:.4f} - ARI(A): {:.4f} - ARI(B): {:.4f} - DBS(A): {:.4f} - DBS(B): {:.4f}'.
+                      format(i1, kappa, A.ARI[-1], B.ARI[-1], A.davies_bouldin[-1], B.davies_bouldin[-1]))
             A.prior_update()
             B.prior_update()
 
@@ -109,7 +110,7 @@ if __name__ == "__main__":
                 B.update()
                 kappa = cohen_kappa_score(A.pred_label, B.pred_label)
                 cohen_kappa.append(kappa)
-                print('MH Epoch', i1, ':', kappa)
+                print('MH Epoch {} - Kappa: {:.4f}'.format(i1, kappa))
 
         save_toFile(path=a_path, file_name='_means_' + str(i0), data_saved=A.z_means, rows=1)
         save_toFile(path=b_path, file_name='_means_' + str(i0), data_saved=B.z_means, rows=1)
