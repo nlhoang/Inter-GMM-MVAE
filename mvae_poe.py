@@ -119,29 +119,33 @@ def train(args, model, data_loader, optimizer, device='mps', mu_prior=None, var_
         no_average = 1
 
         if mu_prior is not None:
+            batch_head = batch_idx * args.batch_size
+            batch_end = batch_head + args.batch_size
+            mu_prior_batch = mu_prior[batch_head:batch_end]
+            var_prior_batch = var_prior[batch_head:batch_end]
             loss_joint, la, lb, lc = m_elbo(args=args, recon_vision=vision_recon, vision=vision,
                                 recon_audio=audio_recon, audio=audio, recon_tactile=tactile_recon, tactile=tactile,
-                                mu=mu, logvar=logvar, mu_prior=mu_prior, var_prior=var_prior,
+                                mu=mu, logvar=logvar, mu_prior=mu_prior_batch, var_prior=var_prior_batch,
                                 variational_beta=args.variational_beta, dim=args.latent_dim)
             if vision is not None:
                 vision_recon1, _, _, mu_vision, logvar_vision = model(vision=vision, audio=None, tactile=None)
                 loss_vision, _, _, _ = m_elbo(args=args, recon_vision=vision_recon1, vision=vision,
                                      recon_audio=None, audio=None, recon_tactile=None, tactile=None,
-                                     mu=mu_vision, logvar=logvar_vision, mu_prior=mu_prior, var_prior=var_prior,
+                                     mu=mu_vision, logvar=logvar_vision, mu_prior=mu_prior_batch, var_prior=var_prior_batch,
                                      variational_beta=args.variational_beta, dim=args.latent_dim)
                 no_average += 1
             if audio is not None:
                 _, audio_recon1, _, mu_audio, logvar_audio = model(vision=None, audio=audio, tactile=None)
                 loss_audio, _, _, _ = m_elbo(args=args, recon_vision=None, vision=None,
                                     recon_audio=audio_recon1, audio=audio, recon_tactile=None, tactile=None,
-                                    mu=mu_audio, logvar=logvar_audio, mu_prior=mu_prior, var_prior=var_prior,
+                                    mu=mu_audio, logvar=logvar_audio, mu_prior=mu_prior_batch, var_prior=var_prior_batch,
                                     variational_beta=args.variational_beta, dim=args.latent_dim)
                 no_average += 1
             if tactile is not None:
                 _, _, tactile_recon1, mu_tactile, logvar_tactile = model(vision=None, audio=None, tactile=tactile)
                 loss_tactile, _, _, _ = m_elbo(args=args, recon_vision=None, vision=None,
                                       recon_audio=None, audio=None, recon_tactile=tactile_recon1, tactile=tactile,
-                                      mu=mu_tactile, logvar=logvar_tactile, mu_prior=mu_prior, var_prior=var_prior,
+                                      mu=mu_tactile, logvar=logvar_tactile, mu_prior=mu_prior_batch, var_prior=var_prior_batch,
                                       variational_beta=args.variational_beta, dim=args.latent_dim)
                 no_average += 1
         else:
